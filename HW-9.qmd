@@ -1,0 +1,168 @@
+---
+title: "HW-9"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+set.seed(10)
+bike_data <- read_csv("https://www4.stat.ncsu.edu/~online/datasets/bikeDetails.csv")
+```
+
+```{r}
+bike_data <- bike_data |> 
+  mutate(log_selling_price = log(selling_price), 
+         log_km_driven = log(km_driven),
+         owners = ifelse(owner == "1st owner", "single", "multiple")) |>
+  select(log_km_driven, log_selling_price, everything())
+#use tidymodel functions for splitting the data
+bike_split <- initial_split(bike_data, prop = 0.7)
+bike_train <- training(bike_split)
+bike_test <- testing(bike_split)
+```
+
+```{r}
+#create folds
+bike_CV_folds <- vfold_cv(bike_train, 10)
+```
+
+```{r}
+lm(log_selling_price ~ log_km_driven + year + owners, data = bike_train)$coef
+```
+
+LASSO Model
+
+```{r}
+LASSO_recipe <- recipe(log_selling_price ~ log_km_driven + owners + year, 
+                      data = bike_train) |>
+  step_dummy(owners) |>
+  step_normalize(log_km_driven, year)
+```
+
+```{r}
+LASSO_spec <- linear_reg(penalty = tune(), mixture = 1) |>
+  set_engine("glmnet")
+```
+
+```{r}
+LASSO_wkf <- workflow() |>
+  add_recipe(LASSO_recipe) |>
+  add_model(LASSO_spec)
+LASSO_wkf
+```
+
+```{r}
+#LASSO_grid <- LASSO_wkf |>
+  #tune_grid(resamples = bike_CV_folds,
+            #grid = grid_regular(penalty(), levels = 100)) 
+```
+
+Regression Tree Model
+
+```{r}
+library(tree) #rpart is also often used
+fitTree <- tree(dist ~ speed, data = cars) #default splitting is deviance
+plot(fitTree)
+text(fitTree)
+```
+
+```{r}
+tree_mod <- decision_tree(tree_depth = tune(),
+                          min_n = 20,
+                          cost_complexity = tune()) |>
+  set_engine("rpart") |>
+  set_mode("regression")
+```
+
+Bagged Tree
+
+```{r}
+bike_data <- bike_data |> 
+  mutate(log_selling_price = log(selling_price), 
+         log_km_driven = log(km_driven),
+         owners = ifelse(owner == "1st owner", "single", "multiple")) |>
+  select(log_km_driven, log_selling_price, everything())
+#use tidymodel functions for splitting the data
+bike_split <- initial_split(bike_data, prop = 0.7)
+bike_train <- training(bike_split)
+bike_test <- testing(bike_split)
+```
+
+```{r}
+LASSO_recipe <- recipe(log_selling_price ~ log_km_driven + owners + year, 
+                      data = bike_train)|>
+  step_dummy(owners) |>
+  step_normalize(log_km_driven, year)
+#LR3_rec |>
+ #prep(bike_train) |>
+ #bake(bike_train) |>
+ #colnames()
+```
+
+```{r}
+bag_spec <- bag_tree(tree_depth = 5, min_n = 10, cost_complexity = tune()) |>
+ set_engine("rpart") |>
+ set_mode("classification")
+```
+
+```{r}
+#library(baguette)
+#bag_wkf <- workflow() |>
+ #add_recipe(#LR3_rec) |>
+ #add_model(bag_spec)
+```
+
+```{r}
+#bag_fit <- bag_wkf |>
+ #tune_grid(resamples = heart_CV_folds,
+ #grid = grid_regular(cost_complexity(),
+ #levels = 15),
+ #metrics = metric_set(accuracy, mn_log_loss))
+#bag_fit
+```
+
+```{r}
+#bag_fit |>
+ #collect_metrics() |>
+ #filter(.metric == "mn_log_loss") |>
+ #arrange(mean)
+```
+
+Random Forest
+
+```{r}
+rf_spec <- rand_forest(mtry = tune()) |>
+ set_engine("ranger") |>
+ set_mode("classification")
+```
+
+```{r}
+#rf_wkf <- workflow() |>
+ #add_recipe(LR3_rec) |>
+ #add_model(rf_spec)
+```
+
+```{r}
+#rf_fit <- rf_wkf |>
+ #tune_grid(resamples = bike_CV_folds,
+ #grid = 7,
+ #metrics = metric_set(accuracy, mn_log_loss))
+```
+
+Pulling Out the Best Model
+
+```{r}
+#lowest_rmse <- LASSO_grid |>
+  #select_best(metric = "rmse")
+#lowest_rmse
+```
+
+```{r}
+#rbind(MLR_fit1 |> collect_metrics() |> filter(.metric == "rmse"),
+      #MLR_fit2 |> collect_metrics() |> filter(.metric == "rmse"),
+      #MLR_fit3 |> collect_metrics() |> filter(.metric == "rmse")) |> 
+  #mutate(Model = c("Model 1", "Model 2", "Model 3")) |>
+  #select(Model, mean, n, std_err)
+```
